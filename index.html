@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<head>
+	<title>Drawing CIRCLES and ROTATIONS with Javascript without HTML5 canvas</title>
+	<meta charset='utf-8'/> 
+	<link href='http://fonts.googleapis.com/css?family=Average+Sans' rel='stylesheet' type='text/css'>
+	<script src="cssSandpaper.js"></script>
+	<style>
+		body{font-family:"Average Sans", helvetica, sans-serif;text-align:center;}
+		#container{width:820px;margin:auto;text-align:left;}
+		.small{font-size:small;display:block;padding-bottom:13px;}
+		a{color:black;}
+	</style>
+	<script>
+	(function() {
+	    var lastTime = 0;
+	    var vendors = ['ms', 'moz', 'webkit', 'o'];
+	    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
+	        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
+	        window.cancelRequestAnimationFrame = window[vendors[x]+
+	          'CancelRequestAnimationFrame'];
+	    }
+	
+	    if (!window.requestAnimationFrame)
+	        window.requestAnimationFrame = function(callback, element) {
+	            var currTime = new Date().getTime();
+	            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+	            var id = window.setTimeout(function() { callback(currTime + timeToCall); }, 
+	              timeToCall);
+	            lastTime = currTime + timeToCall;
+	            return id;
+	        };
+	
+	    if (!window.cancelAnimationFrame)
+	        window.cancelAnimationFrame = function(id) {
+	            clearTimeout(id);
+	        };
+	}());
+	
+	/*
+	++++++++++++++++++ OBJECT EXTENSIONS
+	*/
+		/*http://stackoverflow.com/questions/4627899/how-to-find-length-of-literal-array*/
+		Object.size = function(obj) {
+		    var size = 0, key;
+		    for (key in obj) {
+		        if (obj.hasOwnProperty(key)) size++;
+		    }
+		    return size;
+		};
+		/*
+		http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
+		*/
+		Object.keys = Object.keys || (function () {
+		    var hasOwnProperty = Object.prototype.hasOwnProperty,
+		        hasDontEnumBug = !{toString:null}.propertyIsEnumerable("toString"),
+		        DontEnums = [ 
+		            'toString', 'toLocaleString', 'valueOf', 'hasOwnProperty',
+		            'isPrototypeOf', 'propertyIsEnumerable', 'constructor'
+		        ],
+		        DontEnumsLength = DontEnums.length;
+		
+		    return function (o) {
+		        if (typeof o != "object" && typeof o != "function" || o === null)
+		            throw new TypeError("Object.keys called on a non-object");
+		
+		        var result = [];
+		        for (var name in o) {
+		            if (hasOwnProperty.call(o, name))
+		                result.push(name);
+		        }
+		
+		        if (hasDontEnumBug) {
+		            for (var i = 0; i < DontEnumsLength; i++) {
+		                if (hasOwnProperty.call(o, DontEnums[i]))
+		                    result.push(DontEnums[i]);
+		            }   
+		        }
+		
+		        return result;
+		    };
+		})();
+		
+		
+	  /*Kris Merckx - 2013 - creative commons license non-commercial + commercial license*/
+	  
+	  /*
+	  Nieuwe parameters: ellX, ellY, tilt, orReform
+	  */
+	  function cc(el,data){
+		  data.links = typeof data.links !== 'undefined' ? data.links : [];
+		  data.ellX = typeof data.ellX !== 'undefined' ? data.ellX : 1;
+		  data.ellY = typeof data.ellY !== 'undefined' ? data.ellY : 1;
+		  data.tilt = typeof data.tilt !== 'undefined' ? data.tilt : 90;
+		  data.direction = typeof data.direction !== 'undefined' ? data.direction : "9clockwise";
+		  data.startPosition = typeof data.startPosition !== 'undefined' ? data.startPosition : 0;
+		  data.orReform = typeof data.orReform !== 'undefined' ? data.orReform : 180;
+		  data.size = typeof data.size !== 'undefined' ? data.size : 10;
+		  data.image = typeof data.image !== 'undefined' ? data.image : "";
+	      data.characters = typeof data.characters !== 'undefined' ? data.characters : "";
+	      data.xpos = typeof data.xpos !== 'undefined' ? data.xpos : 200;
+	      data.ypos = typeof data.ypos !== 'undefined' ? data.ypos : 200;
+	      data.width = typeof data.width !== 'undefined' ? data.width : 20;
+	      data.height = typeof data.height !== 'undefined' ? data.height : 20;
+	      data.radius = typeof data.radius !== 'undefined' ? data.radius : 150;
+	      data.color = typeof data.color !== 'undefined' ? data.color : "";
+	      data.numbers = typeof data.numbers !== 'undefined' ? data.numbers : false;
+	      data.image = typeof data.image !== 'undefined' ? data.image : "";
+		  data.backgroundColor = typeof data.backgroundColor !== 'undefined' ? data.backgroundColor : "";
+		  data.fontSize = typeof data.fontSize !== 'undefined' ? data.fontSize : "";
+		  data.border = typeof data.border !== 'undefined' ? data.border : "";
+		  
+		  /*Versnelling op welbepaald punt in cirkel*/
+		  data.accelStart = typeof data.accelStart !== 'undefined' ? data.accelStart : "";
+		  var accelStartX= data.accelStart.x;
+		  var accelStartY= data.accelStart.y;
+		  var accelStartSpeed= data.accelStart.sp;
+		  accelStartX =typeof accelStartX !== 'undefined' ? accelStartX : 9999999999;
+		  accelStartY =typeof accelStartY !== 'undefined' ? accelStartY : 9999999999;
+		  accelStartSpeed =typeof accelStartSpeed !== 'undefined' ? accelStartSpeed : 0;
+		 
+		 /*
+		 versnellen vanaf startX
+		 tot het verschil(helft) van het begin en het einde
+		 vertragen vanaf de helft tot eind
+		 */
+		 
+		 
+		  var mo= document.getElementById(el);
+		  document.getElementById(el).style.position= "relative";	
+		  
+		  
+		
+		  /*
+		  data.characters heeft voorrang op data.numbers
+		  data.words heeft voorrang op data.characters
+		  data.links heeft voorrang op data.words
+		  */	  
+		  var text= data.characters;
+		  var aantal=data.size;
+	
+		  if(text.length>0){
+			aantal= text.length;
+		  }
+		  
+		  var words= data.words;
+		  if(Object.size(words)>0){
+		  	aantal= Object.size(words);
+		  }
+		  var links= data.links;
+		  if(Object.size(links)>0){
+		  	aantal= Object.size(links);
+		  }
+		  
+		  
+		  var versnelling= Math.PI * 2 / aantal;
+		
+		  var x=data.xpos;
+		  var y=data.ypos;
+		  var r=data.radius;
+		  
+		  var w= data.width;
+		  var h= data.height;
+		  
+		  var kantel=data.tilt;
+		  var orientationReform= data.orReform;
+		  
+		  var omtrek= 2*Math.PI*r;
+		  var hoek= 360/aantal;
+
+		  
+		  var roh;
+		  var j=0;
+		   for( var i = 0; i < aantal; i++ ) {
+		   	    
+		  		var mdiv = document.createElement("div");
+		  		mdiv.style.width=w + "px";
+		  		mdiv.style.height=h + "px";
+				
+				j=i+data.startPosition;
+				
+				/*
+				x min y plus: start vanaf 9 uur tegenwijzerzin
+				*/
+				
+				switch(data.direction){
+				case "9clockwise":
+				  /*x min y min: start vanaf 9 uur wijzerzin*/
+				  xS = (x - Math.cos((hoek*j) *Math.PI / 180)*r)*data.ellX;
+				  yS = (y - Math.sin((hoek*j) * Math.PI / 180)*r)*data.ellY;
+				  break;
+				case "3counterclockwise":
+				  /*x plus y min: start vanaf 3 uur tegenwijzerzin*/
+				  xS = (x + Math.cos((hoek*j) *Math.PI / 180)*r)*data.ellX;
+				  yS = (y - Math.sin((hoek*j) * Math.PI / 180)*r)*data.ellY;
+				  break;
+				case "9counterclockwise":
+				   /*x- en y + => 9 uur in tegenwijzerzin*/
+				   xS = (x - Math.cos((hoek*j) *Math.PI / 180)*r)*data.ellX;
+				   yS = (y + Math.sin((hoek*j) * Math.PI / 180)*r)*data.ellY;
+				   break;
+				case "3clockwise":
+				   xS = (x + Math.cos((hoek*j) *Math.PI / 180)*r)*data.ellX;
+				   yS = (y + Math.sin((hoek*j) * Math.PI / 180)*r)*data.ellY;
+				   break;
+				default:
+				   xS = (x - Math.cos((hoek*j) *Math.PI / 180)*r)*data.ellX;
+				   yS = (y - Math.sin((hoek*j) * Math.PI / 180)*r)*data.ellY;
+				}
+				
+				
+		  		
+				
+		  	    mdiv.style.backgroundColor=data.backgroundColor;
+		  	    
+		  	    roh=Math.atan2( yS - y, xS - x ) * orientationReform / Math.PI + kantel + 'deg';
+		  	    var tnd="";
+		  	    var printme="";
+		  	    if(Object.size(links)>0){
+		  	    	var temp= links[i].text;
+		  	    	var url= links[i].url;
+		  	    	var target="_blank";
+					if(typeof(links[i].target) != "undefined"){
+						target=links[i].target; 	
+					}
+		  	    	var temp= "<a style=\"text-decoration:none;color:" + data.color + "\" href=\"" + url + "\" target=\"" + target + "\">" + temp + "</a>";
+		  	    	mdiv.innerHTML= temp;
+		  	    	
+		  	    }else{
+			  	    if(Object.size(words)>0){
+			  	    	printme=words[i];
+			  	    }else{
+				  	    if(text.length>0){
+				  	       printme=text.charAt(i);
+				  	    }else{
+				  	    	if(data.numbers){	
+				  				printme=i+1;
+					  	    }else{
+					  	    	printme="";	
+					  	    }	
+				  	    }
+			  	    }
+		  	    }
+		  	    tnd=document.createTextNode(printme);
+		  	    if(data.image.length >0){
+		  	    	mdiv.style.backgroundImage= "url(" + data.image + ")";
+		  	    }
+		  		
+		  		
+		  		var ml= xS-(w/2);
+		  		var mt= yS-(h/2);
+		  		mdiv.style.marginLeft= ml + "px";
+		  		mdiv.style.marginTop= mt + "px";
+		  		mdiv.style.textAlign= "center";
+		  		mdiv.style.lineHeight= h + "px";
+		  		
+		  		
+		  	   // mdiv.style.fontSize= "large";
+		  	    mdiv.style.textAlign="center";
+				mdiv.style.color= data.color;
+				mdiv.style.fontSize= data.fontSize;
+				mdiv.style.border= data.border;
+				mdiv.style.backgroundPosition= "center center";
+				mdiv.style.backgroundRepeat="no-repeat";
+		  
+		  		var ro= "rotate(" + roh + ")";
+		  		//calSin = Math.sin(radians);
+				//calCos = Math.cos(radians);
+				//element.style.filter = 'progid:DXImageTransform.Microsoft.Matrix(M11=' + calCos + ', M12=-' + calSin + ',M21=' + calSin + ', M22=' + calCos + ', sizingMethod="auto expand")';
+		  		
+		  		
+		  		mdiv.style.webkitTransform = ro;
+				mdiv.style.MozTransform = ro;
+				mdiv.style.msTransform = ro;
+				mdiv.style.OTransform = ro;
+				mdiv.style.transform = ro;
+				mdiv.style.sandTransform= ro;
+		  		
+		  		if(typeof(data.borderRadius) != "undefined"){
+		  			mdiv.style.borderRadius = data.borderRadius;
+					mdiv.style.MozBorderRadius = data.borderRadius;
+					mdiv.style.WebkitBorderRadius = data.borderRadius;	
+		  		}
+		  		
+		  		mdiv.style.position="absolute";
+		  		mdiv.appendChild(tnd);
+		  		mo.appendChild(mdiv);
+		   }
+	  }
+	  
+	  
+	</script>
+</head>
+<body>
+<div id="container">
+<h4>Drawing without HTML5-canvas with javascript generated div's and trigonometry</h4>
+<h3>Wrapping text, text on an arc with javascript</h3>
+<span class="small">Copyright: Kris Merckx - www.computerkit.be 2013</span>
+<div>
+	<div style="width:800px">
+		<a href="divarc.pdf" target="_blank">Download de nieuwe handleiding</a>
+		<br/>
+		<a href="sinus.html">Sinusgolven tekenen (kan even duren...)</a>
+		<br/>
+		<a href="index.html" target="_blank">Online leren programmeren met SIRK</a>
+		<!--[if IE 6]>
+			<a href="http://chrome.google.com">Download Chrome</a>
+		<![endif]-->
+		<p>Gebruik best een webstandaard compatibele browser zoals <span style="background-color:orange">Chrome, Safari, Firefox, Opera, Konqueror, Mobile Safari...</span></p>
+		<h4>Met animatie...</h4>
+		<span>De animatie is relatief belastend voor oudere/tragere computers. Ik voorzie hier in de toekomst een omschakeling van de intervalfunctie naar requestAnimationFrame (<a href="http://www.computerkit.be/icaros/apps/werken/boeken.asp#17" target="_blank">zie mijn boek webapplicaties</a>). <br/>NIEUW: <a style="background-color:yellow" href="#ss">Animatie zonnestelsel</a>.</span>
+	</div>
+	<div id="play7" style="background-color:#ccc345;float:left;margin-top:20px;width:810px; height:300px; border:2px solid black; overflow:hidden;padding-top:40px;text-align:center;">
+		<h2>DRUK OP DE STARTKNOP ONDER DIT VLAK</h2>
+	</div>
+	<div style="width:800px">
+	<script>
+	 var interval;
+	</script>
+	<button onclick="interval=setInterval(function(){manim();},1000/14);">Start</button>
+	<button onclick="clearInterval(interval);">stop</button>
+	</div>
+	
+	<div style="width:800px">
+		<h4>Meerdere cirkels in elkaar</h4>
+		<p>Genummerde lijsten of woorden splitsen per karakter. In het rechtervoorbeeld 2 cirkels met een andere X- en Y-positie. Je merkt dat tekens zowel in wijzerzin als in tegenwijzerzin kunnen weergegeven worden, vertrekkend vanuit 3 of 9 uur.</p>
+	</div>
+	
+	<div id="play" style="width:400px;height:400px;border:2px solid black;overflow:hidden;float:left">
+	</div>
+	<div id="play2" style="width:400px; height:400px; border:2px solid black; overflow:hidden;margin-left:410px;color:white;"></div>
+	<div style="width:800px;float:left;">
+		<h4>Afbeeldingen en tilt</h4>
+		<p>Cirkels met achtergrondafbeelding. Bij de linker cirkel is de tilt-parameter verhoogd.</p>
+	</div>
+	
+	<div id="play3" style="float:left;margin-top:20px;width:810px; height:600px; border:2px solid black; overflow:hidden;"></div>
+	<div style="width:800px;float:left;">
+		<h4>Animatie van parameters</h4>
+		<p>Animatie van hoogte, aantal, X- en Y-positie, rotatie, straal, ellipsvervorming...</p>
+	</div>	
+	<div id="play8" style="margin-top:20px;width:810px; height:300px; border:2px solid black; overflow:hidden;background-color:#ccc345;padding-top:40px;text-align:center;">
+		<h2>DRUK OP DE STARTKNOP ONDER DIT VLAK</h2>
+	</div>
+	<div style="width:800px">
+		<script>
+		 var interval2;
+		</script>
+		<button onclick="interval2=setInterval(function(){manim2();},1000/14);">Start</button>
+		<button onclick="clearInterval(interval2);">stop</button>
+	</div>
+	<div style="width:800px;float:left;">
+		<h4>Woorden, karakters, links, tilt, en startpositie</h4>
+		<p>Je kan woorden automatisch laten splitsen in hun respectieve karakters, woorden afzonderlijk weergeven of links aanmaken.</p>
+		<p>Bij sommige elementen is de "tilt"-parameter en de startpositie aangepast</p>
+	</div>
+	<div id="play4" style="float:left;margin-top:20px;width:810px; height:700px; border:2px solid black; overflow:hidden;"></div>
+	<div style="width:800px;float:left;">
+		<h4>Ellips- en 3D-vervorming</h4>
+		<p>Cirkels kunnen als een ellips worden weergegeven. Dit heeft ook een invloed op de rotatie van elk vlak.</p>
+	</div>
+	<div id="play5" style="margin-top:20px;width:810px; height:700px; border:2px solid black; overflow:hidden;"></div>
+	<div style="width:800px;float:left;">
+		<h4>Rotatie-vervorming</h4>
+		<p>Vervorming in de rotatie van elk vlak.</p>
+	</div>
+	<div id="play6" style="margin-top:20px;width:810px; height:700px; border:2px solid black; overflow:hidden;"></div>
+	<div style="width:800px;float:left;"><a name="ss"></a>
+		<h4>Zonnestelsel</h4>
+		<p>4 cirkels met telkens één element. Druk op de knop "start" om de animatie te laten beginnen</p>
+	</div>
+	<div id="solarsystem" style="background-image:url(icons/zonnestelsel/stars.jpg);margin-top:20px;border:2px solid black;width:810px;height:800px;overflow:hidden;background-color:black;">
+	
+	</div>
+	<div style="width:800px">
+	<script>
+	 var solar;
+	</script>
+	<span>Klassieke intervalfunctie: </span><br/>
+	<button onclick="solar=setInterval(function(){solarSystem();},1000/14);">Start</button>
+	<button onclick="clearInterval(solar);">stop</button>
+	<br/>
+	<span>Met RAF (request animation frame): </span><br/><button onclick="animate();">Start animatie</button>
+	<button onclick="stopRAF();">Stop animatie</button>
+	</div>
+
+	<div style="width:800px;margin:10px;height:50px;position:relative;">
+	<span style="display:block;font-size:small;text-align:center;">Copyright: Kris Merckx - <a href="http://www.computerkit.be">www.computerkit.be / www.ardeco.be</a></span>
+	</div>
+</div>
+
+<script>
+
+cc("solarsystem",{
+	size: 1,
+	xpos: 630,
+	ypos: 400,
+	radius: 2,
+	width:110,
+	height:110,
+	image: "icons/zonnestelsel/zonKlein.png"
+});
+cc("solarsystem",{
+	size: 1,
+	xpos: 600,
+	ypos: 400,
+	radius: 160,
+	width:62,
+	height:62,
+	image: "icons/zonnestelsel/mercuriusKlein.png"
+});
+cc("solarsystem",{
+	size: 1,
+	xpos: 600,
+	ypos: 400,
+	radius: 320,
+	width:62,
+	height:62,
+	image: "icons/zonnestelsel/venusKlein.png"
+});
+
+cc("solarsystem",{
+	size: 1,
+	xpos: 600,
+	ypos: 400,
+	radius: 520,
+	width:70,
+	height:70,
+	image: "icons/zonnestelsel/aardeKlein.png"
+});
+
+
+cc("play", {
+	size: 12,
+	xpos: 200,
+	ypos: 200,
+	radius: 100,
+	width:30,
+	height:30,
+	backgroundColor: "orange",
+	characters:" Kris Merckx",
+	borderRadius: "4em"	
+});
+
+cc("play2", {
+	size: 7,
+	xpos: 100,
+	ypos: 100,
+	radius: 60,
+	width:20,
+	height:20,
+	backgroundColor: "blue",
+	characters:" Kris Merckx"
+});
+
+cc("play", {
+	size: 6,
+	xpos: 200,
+	ypos: 200,
+	radius: 60,
+	width:20,
+	height:40,
+	backgroundColor: "green",
+	numbers: true
+});
+
+
+cc("play", {
+	size: 24,
+	xpos: 200,
+	ypos: 200,
+	radius: 140,
+	width:23,
+	height:40,
+	backgroundColor: "lightgreen",
+	numbers: true,
+	direction:"9counterclockwise"
+});
+
+cc("play", {
+	size: 48,
+	xpos: 200,
+	ypos: 200,
+	radius: 190,
+	width:23,
+	height:22,
+	backgroundColor: "silver",
+	numbers: true,
+	direction: "3clockwise"
+});
+
+cc("play2", {
+	size: 24,
+	xpos: 300,
+	ypos: 270,
+	radius: 140,
+	width:23,
+	height:40,
+	backgroundColor: "#ccc666",
+	numbers: true,
+	startPosition: 12
+});
+
+cc("play3", {
+	size: 24,
+	xpos: 400,
+	ypos: 350,
+	radius: 300,
+	width:100,
+	height:100,
+	image: "icons/sf/003.png",
+	startPosition:0.4
+});
+
+cc("play3", {
+	size: 12,
+	xpos: 200,
+	ypos: 200,
+	radius: 140,
+	width:100,
+	height:100,
+	characters:" Kris Merckx",
+	fontSize: "x-large",
+	image: "icons/sf/002.png",
+	tilt: 20
+});
+
+cc("play4", {
+	size: 36,
+	xpos: 400,
+	ypos: 350,
+	radius: 220,
+	width:100,
+	height:20,
+	numbers: true,
+	color:"white",
+	backgroundColor:"orange",
+	borderRadius: "3px",
+	words: ["Jan", "piet", "joris", "corneel", "kris", "marc", "lies", "han", "leen"],
+	tilt:45
+});
+
+cc("play4", {
+	size: 36,
+	xpos: 400,
+	ypos: 350,
+	radius: 180,
+	width:36,
+	height:30,
+	characters:"abcdefghijklmnopqrstuvwxyz"
+});
+
+cc("play4", {
+	size: 36,
+	xpos: 400,
+	ypos: 350,
+	radius: 280,
+	width:36,
+	height:30,
+	characters:"Kris Merckx vindt javascript een coole scriptingtaal waarmee je leuke cirkels kan tekenen. "
+});
+
+cc("play4", {
+	size: 1,
+	xpos: 400,
+	ypos: 350,
+	radius: 40,
+	backgroundColor:"lightblue",
+	width:36,
+	height:30,
+	characters: "      ",
+	borderRadius:"20px",
+	tilt:36
+});
+
+
+cc("play4", {
+	size: 8,
+	xpos: 400,
+	ypos: 350,
+	radius: 100,
+	width:80,
+	height:30,
+	color: "white",
+	backgroundColor: "orange",
+	startPosition:0.3,
+    links: [{
+			text: "Google",
+			url: "http://www.google.be",
+			target: "_blank"
+		},{
+			text: "Yahoo",
+			url: "http://www.yahoo.com"
+		},{
+			text: "Wikipedia",
+			url: "http://www.wikipedia.org"
+		},{
+			text: "Archive",
+			url: "http://www.archive.org"
+		}
+	]
+});
+
+
+cc("play5", {
+	size: 36,
+	xpos: 400,
+	ypos: 350,
+	radius: 280,
+	width:36,
+	height:30,
+	characters:"abcdefghijklmnopqrstuvwxyz",
+	ellX: 0.3
+});
+
+
+cc("play5", {
+	size: 36,
+	xpos: 400,
+	ypos: 350,
+	radius: 180,
+	width:36,
+	height:30,
+	characters:"abcdefghijklmnopqrstuvwxyz",
+	ellX: 0.2
+});
+
+cc("play5", {
+	size: 36,
+	xpos: 600,
+	ypos: 250,
+	radius: 280,
+	width:36,
+	height:30,
+	backgroundColor: "lightgreen",
+	numbers: false,
+	border:"1px solid black",
+	ellY: 0.3
+});
+
+cc("play6", {
+	size: 36,
+	xpos: 400,
+	ypos: 350,
+	radius: 280,
+	width:36,
+	height:30,
+	characters:"Kris Merckx vindt javascript een coole scriptingtaal waarmee je leuke cirkels kan tekenen. ",
+	orReform:4
+});
+
+cc("play6", {
+	size: 36,
+	xpos: 400,
+	ypos: 350,
+	radius: 180,
+	width:36,
+	height:30,
+	characters:"Kris Merckx vindt javascript een coole scriptingtaal waarmee je leuke cirkels kan tekenen. ",
+	orReform:-180,
+	accelStart: {x:400,y:400,sp:20},
+	accelEnd: {x:400,y:200}
+});
+
+var earth=0;
+var merc=0;
+var venus=0;
+function solarSystem(){
+	document.getElementById("solarsystem").innerHTML="";
+	venus=venus+0.002;
+	earth=earth+0.0012;
+	merc=merc+0.003;
+	cc("solarsystem",{
+		size: 1,
+		xpos: 630,
+		ypos: 400,
+		radius: 2,
+		width:110,
+		height:110,
+		image: "icons/zonnestelsel/zonKlein.png",
+		startPosition: 0
+	});
+	cc("solarsystem",{
+		size: 1,
+		xpos: 600,
+		ypos: 400,
+		radius: 160,
+		width:62,
+		height:62,
+		image: "icons/zonnestelsel/mercuriusKlein.png",
+		direction: "9counterclockwise",
+		startPosition: merc
+	});
+	cc("solarsystem",{
+		size: 1,
+		xpos: 600,
+		ypos: 400,
+		radius: 320,
+		width:62,
+		height:62,
+		image: "icons/zonnestelsel/venusKlein.png",
+		direction: "9counterclockwise",
+		startPosition: venus
+	});
+	
+	cc("solarsystem",{
+		size: 1,
+		xpos: 600,
+		ypos: 400,
+		radius: 520,
+		width:70,
+		height:70,
+		image: "icons/zonnestelsel/aardeKlein.png",
+		direction: "9counterclockwise",
+		startPosition: earth
+	});	
+}
+
+var m=0;
+var n=0;
+function manim(){
+	document.getElementById("play7").innerHTML="";
+	cc("play7", {
+		size: 10,
+		xpos: 300,
+		ypos: 150,
+		radius: 80,
+		width:36,
+		height:30,
+		backgroundColor: "lightgreen",
+		numbers: false,
+		startPosition:m,
+		border:"1px solid black",
+		numbers:true
+	});
+	cc("play7", {
+		size: 14,
+		xpos: 300,
+		ypos: 150,
+		radius: 120,
+		width:36,
+		height:30,
+		backgroundColor: "yellow",
+		numbers: false,
+		startPosition:n,
+		border:"1px solid black",
+		numbers:true
+	});
+    m= m+0.2;
+    n=n-0.2;
+}
+
+var a=10;
+var b=0;
+var c=0;
+var d=0;
+var e=0;
+var f=0;
+var g=0;
+var h=0;
+var ex=0;
+function manim2(){
+	
+	document.getElementById("play8").innerHTML="";
+	cc("play8", {
+		size: 10,
+		xpos: 200,
+		ypos: 200,
+		radius: 100,
+		width:36,
+		height:g,
+		backgroundColor: "lightgreen",
+		numbers: false,
+		startPosition:h,
+		border:"1px solid black",
+		numbers:true,
+		ellX: ex
+	});
+	cc("play8", {
+		size: d,
+		xpos: e,
+		ypos: f,
+		radius: 100,
+		width:36,
+		height:g,
+		backgroundColor: "yellow",
+		numbers: false,
+		startPosition:n,
+		border:"1px solid black",
+		numbers:true
+	});
+    a= a+2;
+    if(a>900){a=-100;}
+    b= b+10;
+    if(b>500){b=-200;}
+    d= d+1;
+    if(d>20){d=4;}
+    e= e+10;
+    if(e>900){e=-100;}
+    f= f+10;
+    if(f>500){
+    	f=-200;	
+    }
+    g=g+2;
+    if(g>80){g=10;}
+    h=h+0.1;
+    ex=ex+0.1;
+    if(ex>10){
+    	ex=0;	
+    }
+}
+
+var rafID;
+
+function animate() {
+    rafID=window.requestAnimationFrame(animate);
+    solarSystem();
+}
+
+function stopRAF() {
+    if (rafID) {
+       window.cancelAnimationFrame(rafID);
+       radID = undefined;
+    }
+}
+
+
+</script>
+</div>
+</body>
+</html>
